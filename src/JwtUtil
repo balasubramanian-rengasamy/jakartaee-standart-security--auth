@@ -1,0 +1,79 @@
+package bs.bob
+
+import com.auth0.jwt.JWT
+import com.auth0.jwt.JWTVerifier
+import com.auth0.jwt.algorithms.Algorithm
+import com.auth0.jwt.exceptions.JWTVerificationException
+import com.auth0.jwt.interfaces.DecodedJWT
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.security.*
+import java.security.interfaces.RSAPrivateKey
+import java.security.interfaces.RSAPublicKey
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
+import java.util.*
+
+object JwtUtil {
+
+  private const val EXPIRATION_TIME = 86400000L
+
+  // Load RSA Keys from files
+  private val PRIVATE_KEY: PrivateKey = loadPrivateKey("private_key.pkcs8")
+  private val PUBLIC_KEY: PublicKey = loadPublicKey("public_key.x509")
+
+  fun generateToken(username: String, roles: List<String>): String {
+    println(roles.joinToString { it } + "<<<<<")
+    return JWT.create()
+      .withSubject(username)
+      .withIssuer("project")
+      .withClaim("roles", roles)
+      .withExpiresAt(Date(System.currentTimeMillis() + EXPIRATION_TIME))
+      .sign(Algorithm.RSA256(PUBLIC_KEY as RSAPublicKey, PRIVATE_KEY as RSAPrivateKey)) // Use RSA256 instead of HMAC256
+  }
+
+  private fun validateToken(token: String): DecodedJWT {
+    try {
+      val algorithm = Algorithm.RSA256(PUBLIC_KEY as RSAPublicKey, PRIVATE_KEY as RSAPrivateKey)
+      val verifier: JWTVerifier = JWT.require(algorithm).build()
+      return verifier.verify(token)
+    } catch (e: JWTVerificationException) {
+      // Handle the exception or log the error
+      throw RuntimeException("Token verification failed: ${e.message}")
+    }
+  }
+
+  fun extractUsername(token: String): String {
+    val decodedJWT = validateToken(token)
+    return decodedJWT.subject
+  }
+
+  fun extractRoles(token: String): List<String> {
+    val decodedJWT = validateToken(token)
+    val ls = decodedJWT.getClaim("roles").asList(String::class.java)
+    return ls
+  }
+
+  // Function to load private key from .pkcs8 file
+  private fun loadPrivateKey(path: String): PrivateKey {
+    val keyBytes = Files.readAllBytes(Paths.get(path))
+    val spec = PKCS8EncodedKeySpec(keyBytes)
+    val kf = KeyFactory.getInstance("RSA")
+    return kf.generatePrivate(spec)
+  }
+
+  // Function to load public key from x509 file
+  private fun loadPublicKey(path: String): PublicKey {
+    val keyBytes = Files.readAllBytes(Paths.get(path))
+    val spec = X509EncodedKeySpec(keyBytes)
+    val kf = KeyFactory.getInstance("RSA")
+    return kf.generatePublic(spec)
+  }
+}
+
+fun main() {
+  val token = JwtUtil.generateToken("bala", listOf("user", "administrator", "manager"))
+  println(token)
+  println(JwtUtil.extractUsername(token))
+  println(JwtUtil.extractRoles(token))
+}
