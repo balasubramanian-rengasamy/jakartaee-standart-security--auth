@@ -1,0 +1,40 @@
+import java.io.IOException
+import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.security.KeyPairGenerator
+import java.util.*
+
+fun main() {
+    generateKeys()
+}
+
+fun generateKeys() {
+    val generator = KeyPairGenerator.getInstance("RSA")
+    generator.initialize(2048) // you may use a bigger key size for better security
+    val keyPair = generator.generateKeyPair()
+    val privateKey = keyPair.private
+    val publicKey = keyPair.public
+
+    // write the keys to the files
+    writeKeyToFile("private_key.pkcs8", privateKey.encoded)
+    writeKeyToFile("public_key.x509", publicKey.encoded)
+}
+
+fun writeKeyToFile(filename: String, key: ByteArray?) {
+    var fos: OutputStream? = null
+    try {
+        fos = Files.newOutputStream(Paths.get(filename))
+        fos.write(key)
+    } catch (e: IOException) {
+        e.printStackTrace()
+    } finally {
+        if (fos != null) {
+            try {
+                fos.close()
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+        }
+    }
+}
